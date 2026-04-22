@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Kártyák">
+<title>Flashcard App</title>
+<style>
+  :root {
+    --bg: #0f0f13;
+    --surface: #1c1c24;
+    --surface2: #25252f;
+    --border: #34344a;
+    --accent: #7c6af5;
+    --accent2: #5b4fcf;
+    --text: #e8e8f0;
+    --text2: #9090aa;
+    --green: #22c55e;
+    --orange: #f97316;
+    --red: #ef4444;
+    --card-front: #1e1e2e;
+    --card-back: #1a2535;
+    --radius: 16px;
+    --shadow: 0 8px 32px rgba(0,0,0,0.5);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  body { display: flex; flex-direction: column; }
+
+  /* ── Header ── */
+  header {
+    padding: env(safe-area-inset-top, 0) 16px 0;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .header-inner {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 0;
+  }
+  header h1 { font-size: 18px; font-weight: 700; color: var(--accent); }
+  .nav-btn {
+    background: none; border: none; color: var(--text2);
+    font-size: 22px; cursor: pointer; padding: 4px 8px;
+  }
+
+  /* ── Selectors ── */
+  .selectors {
+    padding: 12px 16px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  select {
+    width: 100%; padding: 10px 12px; margin-bottom: 8px;
+    background: var(--surface2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 10px;
+    font-size: 14px; appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%239090aa' d='M6 8L0 0h12z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 12px center;
+  }
+  select:last-child { margin-bottom: 0; }
+
+  /* ── Mode toggle ── */
+  .mode-bar {
+    display: flex; gap: 8px; padding: 10px 16px;
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .mode-btn {
+    flex: 1; padding: 8px; border: 1px solid var(--border);
+    border-radius: 10px; background: var(--surface2);
+    color: var(--text2); font-size: 13px; cursor: pointer;
+    transition: all .2s;
+  }
+  .mode-btn.active {
+    background: var(--accent); color: #fff;
+    border-color: var(--accent); font-weight: 600;
+  }
+
+  /* ── Stats bar ── */
+  .stats-bar {
+    display: flex; gap: 6px; padding: 8px 16px;
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    flex-shrink: 0; flex-wrap: wrap;
+  }
+  .pill {
+    padding: 4px 10px; border-radius: 999px; font-size: 12px;
+    font-weight: 600; white-space: nowrap;
+  }
+  .pill-new { background: #3b1d8a; color: #c4b5fd; }
+  .pill-due { background: #7c2d12; color: #fdba74; }
+  .pill-done { background: #14532d; color: #86efac; }
+  .pill-total { background: var(--surface2); color: var(--text2); }
+
+  /* ── Main scroll area ── */
+  main {
+    flex: 1; overflow-y: auto; padding: 16px;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0));
+  }
+
+  /* ── Answer buttons ── */
+  .answer-btns {
+    display: none; gap: 10px; margin-bottom: 14px;
+  }
+  .answer-btns.visible { display: flex; }
+  .btn {
+    flex: 1; padding: 14px; border: none; border-radius: var(--radius);
+    font-size: 15px; font-weight: 600; cursor: pointer; transition: all .15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn-knew { background: var(--green); color: #fff; }
+  .btn-review { background: var(--orange); color: #fff; }
+  .btn:active { transform: scale(0.97); }
+
+  /* ── Card ── */
+  .card-scene {
+    perspective: 1000px; width: 100%;
+    min-height: 260px; margin-bottom: 14px; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .card-inner {
+    width: 100%; height: 100%; min-height: 260px;
+    position: relative; transform-style: preserve-3d;
+    transition: transform .5s cubic-bezier(.4,0,.2,1);
+  }
+  .card-inner.flipped { transform: rotateY(180deg); }
+  .card-face {
+    position: absolute; width: 100%; min-height: 260px;
+    backface-visibility: hidden; -webkit-backface-visibility: hidden;
+    border-radius: var(--radius); padding: 20px;
+    display: flex; flex-direction: column; box-shadow: var(--shadow);
+  }
+  .card-front { background: var(--card-front); border: 1px solid var(--border); }
+  .card-back { background: var(--card-back); border: 1px solid #2d4060;
+    transform: rotateY(180deg); }
+  .card-label {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .08em; color: var(--accent); margin-bottom: 14px;
+  }
+  .card-text {
+    flex: 1; font-size: 16px; line-height: 1.6; color: var(--text);
+    white-space: pre-wrap;
+  }
+  .card-meta {
+    margin-top: 14px; font-size: 12px; color: var(--text2);
+    display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px;
+  }
+  .card-hint {
+    text-align: center; margin-top: 10px; color: var(--text2);
+    font-size: 13px;
+  }
+
+  /* ── Nav buttons ── */
+  .nav-btns {
+    display: flex; gap: 10px; margin-bottom: 14px;
+  }
+  .btn-nav {
+    flex: 1; padding: 12px; border: 1px solid var(--border);
+    border-radius: var(--radius); background: var(--surface2);
+    color: var(--text); font-size: 15px; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn-nav:active { background: var(--surface); }
+
+  /* ── Reset button ── */
+  .reset-section {
+    margin-top: 8px;
+  }
+  .btn-danger {
+    width: 100%; padding: 12px; border: 1px solid #7f1d1d;
+    border-radius: var(--radius); background: #1c0a0a;
+    color: var(--red); font-size: 14px; font-weight: 600;
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+  }
+  .btn-danger:active { background: #2d0f0f; }
+
+  /* ── Empty state ── */
+  .empty {
+    text-align: center; padding: 60px 20px; color: var(--text2);
+  }
+  .empty .icon { font-size: 48px; margin-bottom: 16px; }
+  .empty p { font-size: 16px; line-height: 1.6; }
+
+  /* ── Settings page ── */
+  #settings-page {
+    display: none; flex-direction: column; height: 100%;
+  }
+  #settings-page.visible { display: flex; }
+  .settings-header {
+    padding: env(safe-area-inset-top, 0) 16px 0;
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .settings-header-inner {
+    display: flex; align-items: center; gap: 12px; padding: 12px 0;
+  }
+  .settings-body { flex: 1; overflow-y: auto; padding: 16px;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0)); }
+  .settings-section { margin-bottom: 24px; }
+  .settings-section h3 {
+    font-size: 13px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .06em; color: var(--accent); margin-bottom: 12px;
+  }
+  .card-item {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 12px; padding: 14px; margin-bottom: 8px;
+  }
+  .card-item-q { font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+  .card-item-a { font-size: 13px; color: var(--text2); line-height: 1.5; }
+  .card-item-meta { font-size: 11px; color: var(--text2); margin-top: 8px; }
+
+  /* ── Modal ── */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,.7); z-index: 100;
+    align-items: flex-end;
+  }
+  .modal-overlay.visible { display: flex; }
+  .modal-sheet {
+    width: 100%; background: var(--surface);
+    border-radius: 20px 20px 0 0; padding: 20px 16px;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom, 0));
+    max-height: 85vh; overflow-y: auto;
+  }
+  .modal-title { font-size: 17px; font-weight: 700; margin-bottom: 16px; }
+  .modal-label { font-size: 13px; color: var(--text2); margin-bottom: 6px; }
+  textarea, input[type=text] {
+    width: 100%; padding: 10px 12px; margin-bottom: 12px;
+    background: var(--surface2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 10px;
+    font-size: 14px; font-family: inherit; resize: vertical;
+  }
+  textarea { min-height: 80px; }
+  .modal-btns { display: flex; gap: 10px; margin-top: 8px; }
+  .btn-primary {
+    flex: 1; padding: 13px; border: none; border-radius: 12px;
+    background: var(--accent); color: #fff; font-size: 15px;
+    font-weight: 600; cursor: pointer;
+  }
+  .btn-cancel {
+    flex: 1; padding: 13px; border: 1px solid var(--border);
+    border-radius: 12px; background: var(--surface2); color: var(--text);
+    font-size: 15px; cursor: pointer;
+  }
+</style>
+</head>
+<body>
+
+<!-- ── MAIN APP ── -->
+<div id="main-page" style="display:flex;flex-direction:column;height:100%">
+
+  <header>
+    <div class="header-inner">
+      <h1>&#x1F4DA; Flashcard App</h1>
+      <button class="nav-btn" onclick="openSettings()" title="Beállítások">&#9881;</button>
+    </div>
+  </header>
+
+  <div class="selectors">
+    <select id="bookSel" onchange="onBookChange()">
+      <option value="">-- Válassz könyvet --</option>
+    </select>
+    <select id="tetelSel" onchange="onTetelChange()">
+      <option value="">-- Válassz tételt --</option>
+    </select>
+  </div>
+
+  <div class="mode-bar">
+    <button class="mode-btn active" id="modeAll" onclick="setMode('all')">Minden kártya</button>
+    <button class="mode-btn" id="modeSR" onclick="setMode('spaced')">Spaced Repetition</button>
+  </div>
+
+  <div class="stats-bar" id="statsBar" style="display:none"></div>
+
+  <main id="mainContent">
+    <div class="empty">
+      <div class="icon">&#x1F4DA;</div>
+      <p>Válassz könyvet és tételt a tanuláshoz!</p>
+    </div>
+  </main>
+</div>
+
+<!-- ── SETTINGS PAGE ── -->
+<div id="settings-page">
+  <div class="settings-header">
+    <div class="settings-header-inner">
+      <button class="nav-btn" onclick="closeSettings()">&#8592;</button>
+      <h1 style="font-size:18px;font-weight:700;color:var(--accent)">Beállítások</h1>
+    </div>
+  </div>
+  <div class="settings-body">
+
+    <div class="settings-section">
+      <h3>SR Reset</h3>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button class="btn-danger" onclick="resetProgress('tetel')">&#x26A0; Tétel reset</button>
+        <button class="btn-danger" onclick="resetProgress('book')">&#x26A0; Könyv reset</button>
+        <button class="btn-danger" onclick="resetProgress('all')">&#x26A0; Globális reset (minden)</button>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h3>Könyv / Tétel</h3>
+      <select id="sBookSel" onchange="onSBookChange()">
+        <option value="">-- Válassz könyvet --</option>
+      </select>
+      <select id="sTetelSel" onchange="loadSettingsCards()" style="margin-top:8px">
+        <option value="">-- Válassz tételt --</option>
+      </select>
+    </div>
+
+    <div class="settings-section" id="settingsCardList">
+    </div>
+  </div>
+</div>
+
+<!-- ── ADD/EDIT MODAL ── -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal-sheet">
+    <div class="modal-title" id="modalTitle">Kártya szerkesztése</div>
+    <div class="modal-label">Kérdés</div>
+    <textarea id="modalQ" rows="3"></textarea>
+    <div class="modal-label">Válasz</div>
+    <textarea id="modalA" rows="5"></textarea>
+    <div class="modal-label">Forrás oldal</div>
+    <input type="text" id="modalPage" placeholder="pl. 12">
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal()">Mégse</button>
+      <button class="btn-primary" onclick="saveCard()">Mentés</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Embedded card data ──
+const ALL_CARDS = {"BJ Záróvizsga Tételek": {"1. A magyar büntetőjog története a Csemegi-kódextől napjainkig": [{"id": "zv_t1_c1", "question": "Mi a Csemegi Kódex és mikor lépett hatályba?", "answer": "Az 1878. évi V. törvénycikk, Csemegi Károly államtitkárról elnevezve. Trichotom rendszert (bűntett, vétség, kihágás) alkalmazott, és a klasszikus iskola tanain alapult. Az általános része 1950-ig, különös része 1962-ig volt hatályban.", "source_page": "1"}, {"id": "zv_t1_c2", "question": "Milyen büntetési nemet NEM ismert a Csemegi Kódex?", "answer": "Nem ismerte a vagyonelkobzást (a többi mellékbüntetés igen: hivatalvesztés, politikai jogok felfüggesztése, elkobzás, külföldi kiutasítása stb.). A halálbüntetést csak két esetben engedte meg: a király meggyilkolása és a befejezett gyilkosság esetén.", "source_page": "1"}, {"id": "zv_t1_c3", "question": "Mi volt az I. Büntető Novella (I. Bn.) és mi volt a fő újítása?", "answer": "Az 1908. évi XXXVI. tc. Bevezette a kiszabott büntetés feltételes felfüggesztésének intézményét (sursis) felnőtteknél, és meghatározta a fiatalkorúság fogalmát (12–18 év között), preventív szankciórendszerrel.", "source_page": "2"}, {"id": "zv_t1_c4", "question": "Mi volt a Btá. és mik voltak főbb jellemzői?", "answer": "Az 1950. évi II. törvény (Büntető Törvénykönyv Általános Része). Szocialista általános rész, amely a bűncselekményt társadalomra veszélyes cselekményként definiálta. Nem tartalmazta a bűnösséget fogalmi elemként, és lehetővé tette a büntetőtörvény visszaható erejét az elkövető terhére.", "source_page": "3"}, {"id": "zv_t1_c5", "question": "Milyen újítást hozott az 1971. évi 28. sz. tvr. az 1961. évi Btk.-hoz képest?", "answer": "Bevezette az életfogytig tartó szabadságvesztést, megkülönböztette a bűntetteket és vétségeket súlyuk alapján, és szabályozta a szabadságvesztés négy végrehajtási fokozatát: megkülönböztetett fegyházt, szigorított börtönt, börtönt és fogházat.", "source_page": "4"}, {"id": "zv_t1_c6", "question": "Mikor lépett hatályba a jelenleg hatályos Btk. és mi a törvényszáma?", "answer": "A 2012. évi C. törvény (módosításokkal) 2013. július 1-jétől hatályos.", "source_page": "4"}, {"id": "zv_t1_c7", "question": "Mi volt a II. Büntető Novella (II. Bn.) és mi a 'szigorított dologház' kettős jogi természete?", "answer": "Az 1928. évi X. törvénycikk. A szigorított dologház egyrészt intézkedés volt (veszélyességen alapuló, határozatlan tartamú), másrészt büntetés jegyeit hordozta (munkakényszer, fegyházi szabályok). Ezt a kettős természetet Szőllösy Oszkár 'határozatlan tartamú fegyházbüntetésnek' nevezte.", "source_page": "2"}], "2. A jogállami büntetőjog alapelvei": [{"id": "zv_t2_c1", "question": "Mi a jogállamiság két fő vetülete és mi a különbségük?", "answer": "1. Formai (alaki) jogállamiság: a jogbiztonság követelménye – a büntetőjogban a törvényesség elve. 2. Materiális jogállamiság: az igazságosság követelménye. A Magyar Alkotmánybíróság a jogbiztonság elsődlegessége mellett foglal állást (11/1992. ABH).", "source_page": "5"}, {"id": "zv_t2_c2", "question": "Mi a Radbruch-formula és mi a három lényegi kijelentése?", "answer": "Gustav Radbruch tétele a jog és igazságosság viszonyáról: 1) A pozitív jogot kell alkalmazni még ha igazságtalan is. 2) Az elviselhetetlenül igazságtalan törvénynek meg kell hajolnia az igazságosság előtt. 3) Az a törvény, amely még csak nem is törekszik az igazságosságra, elveszíti jogi jellegét.", "source_page": "5"}, {"id": "zv_t2_c3", "question": "Sorolja fel a törvényesség elvéből (nullum crimen/nulla poena sine lege) levezetett négy tilalmat!", "answer": "1. Sine lege praevia – visszaható hatály tilalma (súlyosabb törvény). 2. Sine lege certa – határozatlan büntetőtörvény tilalma (pontos meghatározottság). 3. Sine lege scripta – szokásjog és bírói jog büntethetőséget alapító alkalmazásának tilalma. 4. Sine lege stricta – analógia tilalma (bíró törvényszöveghez kötve).", "source_page": "6"}, {"id": "zv_t2_c4", "question": "Mi a különbség a tettbüntetőjog és a tettes-büntetőjog között?", "answer": "Tettbüntetőjog: a felelősség az elkövetett cselekményhez (tetthez) kapcsolódik – ez a jogállami alapkövetelmény. Tettes-büntetőjog: az elkövető személyisége, veszélyessége a meghatározó. A jogállami büntetőjogban a bűncselekménytannál csak tettbüntetőjogi alap elfogadott, a tettes-büntetőjogi elemeknek csak a jogkövetkezmények tanában lehet szerepe.", "source_page": "6"}, {"id": "zv_t2_c5", "question": "Mi az arányosság elve büntetőjogi értelemben és milyen három mércét tartalmaz?", "answer": "Alkotmányi rangú elv, amely a jogállamiságból következik. Három mérce: a) alkalmasság – a beavatkozásnak a cél elérésére alkalmasnak kell lennie; b) szükségesség – ne legyen enyhébb eszköz azonos eredményhez; c) arányosság (szűk értelemben) – az egyéni beavatkozás arányban álljon a társadalmi előnnyel.", "source_page": "7"}, {"id": "zv_t2_c6", "question": "Mi a ne bis in idem elv tág és szűk értelme?", "answer": "Tág: senkit ugyanazon cselekmény miatt nem lehet kétszer büntetőjogi hátránnyal sújtani – átfogja az egész büntetőjogot. Szűk: büntetéskiszabásnál a bíróság nem értékelheti súlyosítóként azt, amit a törvényhozó már törvényi tényállási (minősítő) elemként értékelt.", "source_page": "7"}, {"id": "zv_t2_c7", "question": "Mi az ultima ratio (szubszidiaritás) elve és mit mond az Alkotmánybíróság?", "answer": "A büntetőjog a legszigorúbb beavatkozás az egyéni szférába, ezért csak végső eszközként alkalmazható. Az AB szerint 'a büntetőjog a jogi felelősségi rendszerben az ultima ratio. Társadalmi rendeltetése, hogy a jogrendszer egészének szankciós zárköve legyen' [30/1992. AB hat.].", "source_page": "7"}], "3. A büntetőjog forrásai, a Btk. rendszere, a büntetőnorma szerkezete": [{"id": "zv_t3_c1", "question": "Sorolja fel a büntetőjog főbb jogforrásait fontossági sorrendben!", "answer": "I. Nemzetközi jog + EU jog (pl. Genfi egyezmények, ENSZ Egyezségokmány, EJEE 7. cikk, Európai Elfogató Parancs). II. Alaptörvény (különösen II., III., IV., XXVIII. cikkek). III. AB határozatok. IV. Büntető törvénykönyv (2012. évi C. törvény). V. Keretdiszpozíciót kitöltő normák (pl. KRESZ).", "source_page": "8"}, {"id": "zv_t3_c2", "question": "Mikor és milyen AB határozatok változtatták meg a büntetőjogot?", "answer": "23/1990 (X.31.) ABH – megsemmisítette a halálbüntetést. 53/1993 (IX.13.) ABH – az emberiség elleni és háborús bűncselekmények ius cogens jellegét kimondva lehetővé tette az 1956-os sortüzek elkövetőinek felelősségre vonását. 11/1992 (III.5.) ABH – az Elévülési törvény megsemmisítése.", "source_page": "8"}, {"id": "zv_t3_c3", "question": "Hogyan épül fel a hatályos Btk. Általános Része?", "answer": "I–XII. fejezet: I. Alapvető rendelkezések, II. Magyar büntető joghatóság, III. Büntetőjogi felelősség, IV. Büntethetőséget kizáró/korlátozó okok, V. Büntethetőséget megszüntető okok, VI. Felelősségre vonás egyéb akadályai, VII. Büntetések, VIII. Intézkedések, IX. Büntetés kiszabása, X. Hátrányos jogkövetkezmények és mentesítés, XI. Fiatalkorúak, XII. Katonák.", "source_page": "9"}, {"id": "zv_t3_c4", "question": "Mi a büntető norma három eleme és mi a hipotézis–diszpozíció viszonya a büntetőjogban?", "answer": "A jogi norma elemei: a) hipotézis (feltétel/élethelyzet), b) diszpozíció (mit kell tenni/nem tenni), c) szankció (jogkövetkezmény). A büntetőjogban a hipotézis és a diszpozíció részben összeolvad: pl. emberölésnél az 'aki' = hipotézis, 'mást megöl' = diszpozíció, 'öt évtől tizenöt évig terjedő szabadságvesztés' = szankció.", "source_page": "9"}, {"id": "zv_t3_c5", "question": "Milyen négy fajtája van a diszpozíciónak? Adjon egy-egy példát!", "answer": "a) Egyszerű: tautológiával határozza meg (pl. 'Aki mást megöl' – emberölés). b) Leíró: lényeges ismérvekkel határozza meg (pl. lopás: idegen dolgot azért vesz el, hogy eltulajdonítsa). c) Hivatkozó (utaló): Btk.-n belül más bűncselekményre utal (pl. közfeladatot ellátó személy elleni erőszak → hivatalos személy elleni erőszakra). d) Keretdiszpozíció: más jogág szabályait tölti ki (pl. közlekedési bűncselekmények ↔ KRESZ).", "source_page": "9"}], "4. A büntető jogszabály értelmezése és az időbeli hatály": [{"id": "zv_t4_c1", "question": "Melyek az értelmezés módjai (fajtái) a büntetőjogban?", "answer": "a) Nyelvtani – grammatikai szabályok szerint. b) Logikai – formális logika (a minore ad maius, a maiore ad minus, argumentum a contrario). c) Rendszertani – horizontális (rendszerbeli hely) és vertikális (jogrendszer egésze). d) Történeti – keletkezés és fejlődés alapján. e) Teleologikus (cél szerinti) – a szabályozás célját veszi alapul.", "source_page": "10"}, {"id": "zv_t4_c2", "question": "Kik az értelmezés alanyai és milyen kötelező erővel bírnak?", "answer": "a) Jogalkotói értelmezés (autentikus): maga a törvényhozó értelmez (pl. Btk. Értelmező rendelkezések) – nincs külön korlátja. b) Jogalkalmazói: nyomozó hatóság, ügyészség, bíróság – csak az adott ügyre kötelező. c) Tudományos (jogirodalmi) – kötelező ereje nincs, de segítséget nyújt.", "source_page": "10"}, {"id": "zv_t4_c3", "question": "Mi a Btk. időbeli hatályának főszabálya és mi a kivétel?", "answer": "Főszabály (Btk. 2. § (1)): a bűncselekményt az elkövetése idején hatályban lévő törvény szerint kell elbírálni. Kivétel (2. § (2)): ha az elbíráláskor hatályos új törvény szerint a cselekmény már nem bűncselekmény, vagy enyhébben bírálandó el, az új törvényt kell alkalmazni (visszaható hatály csak az elkövető javára!). Különleges kivétel (2. § (3)): nemzetközi jog alapján büntetendő cselekmény elbírálásánál visszaható hatály az elkövető terhére.", "source_page": "10–11"}, {"id": "zv_t4_c4", "question": "Mi az analógia és mikor megengedett büntetőjogban?", "answer": "Az analógia egy nem szabályozott jogesetre a leghasonlóbb törvényi szabály alkalmazása. A lex stricta elvéből következően az analógia TILOS, ha büntethetőséget alapít vagy szigorít (bírói jogalkotás lenne). Megengedett az analógia az elkövető javára: pl. szokásjogilag kialakult büntethetőséget kizáró okok.", "source_page": "11"}, {"id": "zv_t4_c5", "question": "Mi a keretdiszpozíciók időbeli hatályának különleges szabálya? (1/1999. BJH)", "answer": "Ha a keretdiszpozíciót kitöltő jogszabályi rendelkezésekben a bűncselekmény elkövetése után olyan mérvű változás következik be, amely a kötelezettséget megszünteti vagy a tilalmat feloldja, az elbíráláskor hatályos szabályozást visszaható hatállyal kell alkalmazni – kivéve a meghatározott időre szóló jogszabályokat.", "source_page": "11"}], "5. A területi és személyi hatály": [{"id": "zv_t5_c1", "question": "Sorolja fel a területi és személyi hatály meghatározásában alkalmazott hat alapelvet!", "answer": "1. Területi elv – saját területen elkövetett bűncselekményekre. 2. Quasi területi elv – saját lobogó alatti hajó/repülő. 3. Aktív személyi (honossági) elv – saját állampolgár által elkövetett cselekmény bárhol. 4. Képviseleti elv – külföldi által külföldön, ha mindkét állam joga szerint büntetendő. 5. Passzív személyi elv – saját állampolgár sérelmére. 6. Állami önvédelmi elv (reálprincípium) – állam biztonsága ellen. 7. Feltétlen (univerzális) büntető-hatalmi elv – bárhol, bárki által (konvenciós bűncselekmények).", "source_page": "12"}, {"id": "zv_t5_c2", "question": "Mit tartalmaz a Btk. 3. § (1) bekezdése (területi hatály három esete)?", "answer": "a) belföldön elkövetett bűncselekmény (területi elv); b) magyar felségjelű úszólétesítményen vagy légi járművön elkövetett bűncselekmény (quasi területi elv); c) magyar állampolgár által külföldön elkövetett, magyar törvény szerint bűncselekmény (aktív személyi elv).", "source_page": "12"}, {"id": "zv_t5_c3", "question": "Mikor alkalmazható a Btk. nem magyar állampolgárra külföldön elkövetett cselekmény esetén? (Btk. 3. § (2))", "answer": "a) Képviseleti elv: mindkét állam joga szerint büntetendő cselekmény. b) Állami önvédelmi elv: állam elleni bűncselekmény (kettős inkrimináció nem feltétel). c) Feltétlen büntető hatalom: XIII./XIV. fejezet vagy nemzetközi szerződés által üldözendő bűncselekmény. d) Passzív személyi elv: magyar állampolgár/jogi személy sérelmére elkövetve. Mindezekben a büntetőeljárást a legfőbb ügyész rendeli el.", "source_page": "12–13"}, {"id": "zv_t5_c4", "question": "Mit jelent az 'elkövetési hely' meghatározásának problémája és mi a cselekményegység elmélete?", "answer": "Többmozzanatú vagy határon átnyúló bűncselekményeknél az elkövetés helye vitatható. A cselekményegység elmélete szerint a bűncselekmény mindazon országok területén elkövetettnek minősül, ahol bármely tényállásba illeszkedő mozzanata (elkövetési magatartás eleme vagy eredmény) bekövetkezik. Nem számít elkövetési helynek a tényálláshoz nem tartozó következmény helye.", "source_page": "13"}], "6. A bűncselekmény fogalom történeti fejlődése": [{"id": "zv_t6_c1", "question": "Milyen sorrendben alakultak ki a bűncselekmény fogalmi elemei a tudományban?", "answer": "1. Cselekmény – Berner, 1857. 2. Jogellenesség (objektív) – Jhering 1867, Binding (normaelmélet). 3. Tényállásszerűség – Beling, 1906. 4. Bűnösség egységes fogalma (szándék + gondatlanság) – Merkel, 1867. A teljes fogalomváz: cselekmény → tényállásszerűség → jogellenesség → bűnösség.", "source_page": "14"}, {"id": "zv_t6_c2", "question": "Mi a különbség a négy bűncselekmény-fogalmi irányzat között (klasszikus, neoklasszikus, finalista, közvetítő)?", "answer": "Klasszikus (Beling–Liszt): tényállásszerűség értékelésmentes, jogellenesség objektív, bűnösség pszichológiai (szándék+gondatlanság). Neoklasszikus: normatív bűnösség (felróhatóság), szubjektív jogellenességi elemek. Finalista: szándék a tényálláshoz tartozik (nem a bűnösséghez); jogtalanság = tényállásszerűség + jogellenesség. Közvetítő: szándék mindkét helyen szerepelhet – a neoklasszikus és finalista szintézise.", "source_page": "14–15"}, {"id": "zv_t6_c3", "question": "Mi a különbség a formális és a materiális bűncselekmény-fogalom között?", "answer": "Formális: bűncselekmény az a cselekmény, amelyet a törvény büntetni rendel (törvényi tényállás). Materiális: a cselekmény tartalmi összetevőit is megragadja: társadalomra veszélyesség (materiális jogellenesség), tényállásszerűség és bűnösség.", "source_page": "15"}, {"id": "zv_t6_c4", "question": "Hogyan jelent meg a 'társadalomra veszélyesség' a magyar büntetőjog-tudományban?", "answer": "1945 után szovjet minta nyomán kerül be a fogalomba. A régebbi jogellenesség-fogalom mellé emelték be, mert kifejezi a bűncselekménnyé nyilvánítás indokát. A szocialista rendszerben a bűncselekmény fogalma: társadalomra veszélyes + jogellenes + tényállásszerű + bűnös cselekmény. Ez a fogalom csak az ex-szocialista országokban fordult elő.", "source_page": "15"}], "7. A bűncselekmény fogalma a Btk-ban és súly szerinti kategóriái": [{"id": "zv_t7_c1", "question": "Hogyan határozza meg a bűncselekményt a Btk. 4. §-a?", "answer": "Btk. 4. § (1): Bűncselekmény az a szándékosan, vagy – ha e törvény a gondatlan elkövetést is büntetni rendeli – gondatlanul elkövetett cselekmény, amely veszélyes a társadalomra, és amelyre e törvény büntetés kiszabását rendeli. (2): Társadalomra veszélyes cselekmény az a tevékenység vagy mulasztás, amely mások személyét vagy jogait, illetve Magyarország Alaptörvény szerinti társadalmi, gazdasági, állami rendjét sérti vagy veszélyezteti.", "source_page": "15"}, {"id": "zv_t7_c2", "question": "Melyek a bűncselekmény fogalmának elemei és milyen sorrendben vizsgálandók?", "answer": "1. Cselekmény (emberi magatartás). 2. Tényállásszerűség (diszpozíciószerűség) – a törvényi tényállás összes elemének kimerítése. 3. (Büntető)jogellenesség / társadalomra veszélyesség (materiális jogellenesség). 4. Bűnösség (szándékosság vagy gondatlanság + egyéb ismérvek). A sorrendnek jelentősége van: bármelyik hiányában nincs bűncselekmény, és egymásra épülnek.", "source_page": "15–16"}, {"id": "zv_t7_c3", "question": "Mi a különbség bűntett és vétség között a hatályos Btk. szerint?", "answer": "Btk. 5. §: Bűntett az a szándékosan elkövetett bűncselekmény, amelyre a törvény kétévi szabadságvesztésnél súlyosabb büntetés kiszabását rendeli. Vétség: minden más bűncselekmény (valamennyi gondatlan deliktum + kétévi vagy az alatti szándékos bűncselekmény). A rendszer bichotom (szemben a Csemegi Kódex trichotom rendszerével).", "source_page": "16"}, {"id": "zv_t7_c4", "question": "Milyen következményei vannak a bűntett–vétség megkülönböztetésnek?", "answer": "A Btk. Általános Része számos helyen szigorúbb szabályokat fűz a bűntetthez, enyhébbeket a vétséghez. Az elhatároláshoz a törvényi büntetési tétel felső határa az irányadó (nem a ténylegesen kiszabott büntetés). A mellékbüntetésnek és intézkedésnek nincs szerepe az elhatárolásban.", "source_page": "16"}], "8. A bűncselekmény jogi tárgya és elkövetési tárgya": [{"id": "zv_t8_c1", "question": "Mi a jogi tárgy fogalma és mik a tényállástani funkciói?", "answer": "Jogi tárgy: az a jelenség, amit a büntetőjog véd / a bűncselekmény támad. Tartalmát tekintve a társadalom jogilag védett absztrakt értékei. Funkciói: 1) Jogi tárgy nélkül nincs tényállás. 2) A Különös Rész rendszerezési alapja (bűncselekményi csoportok). 3) Értelmezési szempont (rendszerimmanens funkció).", "source_page": "17"}, {"id": "zv_t8_c2", "question": "Mi az elkövetési tárgy és mi a különbség a passzív alany és a sértett között?", "answer": "Elkövetési tárgy: az a személy vagy dolog, akire/amire az elkövetési magatartás behatást gyakorol. Passzív alany: ha az elkövetési tárgy személy – anyagi jogi fogalom. Sértett: akinek jogát vagy jogos érdekét a bűncselekmény sértette/veszélyeztette – eljárásjogi fogalom [Be. 51. § (1)]. Pl. csalásnál: passzív alany = akit tévedésbe ejtett; sértett = aki kárt szenvedett (nem mindig azonos).", "source_page": "17"}, {"id": "zv_t8_c3", "question": "Hogyan viszonyul egymáshoz a jogi tárgy és az elkövetési tárgy? (3 eset)", "answer": "1. Egybeesés (formai és tartalmi): pl. csalásnál a vagyon/vagyoni jog mindkettő. 2. Tartalmi azonosság, formai eltérés: pl. emberölésnél az elkövetési tárgy 'más ember', a jogi tárgy 'az élete'. 3. Szétválás: pl. lopásnál elkövetési tárgy = idegen ingó dolog, jogi tárgy = tulajdonjog.", "source_page": "17"}, {"id": "zv_t8_c4", "question": "Mi az individuális és az univerzális (közösségi) jogi tárgy közötti különbség? Adjon példát!", "answer": "Individuális jogi tárgy: egyes személyekhez kapcsolódó értékek (pl. emberi méltóság, szabadság, tulajdon) – pl. XV. fejezet: élet és testi épség. Univerzális (közösségi) jogi tárgy: általánosan védett értékek (pl. államtitok védelme, közlekedés biztonsága, emberi környezet). Komplex jogi tárgy esetén (pl. hamis vád): igazságszolgáltatás rendje + az emberi méltóság.", "source_page": "17"}], "9. Az elkövetési magatartás": [{"id": "zv_t9_c1", "question": "Milyen esetekben zárható ki az emberi magatartás büntetőjogi relevanciája?", "answer": "a) Természeti események, állati vagy jogi személy magatartása (de vizsgálandó az emberi háttérmagatartás!). b) Hatóképesség hiánya (gondolat nem lép a külvilágba). c) Akaratlagosság hiánya (alvás, hipnózis, reflexmozgás – kivéve ha felróható előmagatartásból ered). d) Jogilag védett értékek sértésére alkalmatlan magatartás.", "source_page": "18"}, {"id": "zv_t9_c2", "question": "Mi a tevékenység és a mulasztás elhatárolása és milyen három csoportba sorolhatók az elkövetési magatartások?", "answer": "Tevékenység: aktív testmozgás. Mulasztás: kötelességellenes nemtevés (cselekvési lehetőség + cselekvési kötelesség ellenére). Csoportok: a) csak tevéssel (pl. rablás, szexuális erőszak); b) kizárólag mulasztással (pl. segítségnyújtás elmulasztása); c) mindkettővel (pl. magánlaksértés: bemenetel vagy bennmaradás; nyitott tényállások pl. emberölés).", "source_page": "18"}, {"id": "zv_t9_c3", "question": "Mikor alapozhat meg mulasztás büntetőjogi felelősséget nyitott törvényi tényállásoknál?", "answer": "Csak ha az elkövetőt speciális jogi kötelesség terheli az eredmény megakadályozására: 1) nem büntetőjogi jogszabályon (pl. szülő gondviselési kötelessége); 2) polgári jogi szerződésen; 3) munkaviszony/munkaköri kötelességen; 4) hivatáson/foglalkozási szabályon; 5) harmadik személyért való felelősségen; 6) megelőző, veszélyt létrehozó tevékenységen (Ingerenz).", "source_page": "18–19"}, {"id": "zv_t9_c4", "question": "Mi a különbség a tiszta mulasztásos és a vegyes mulasztásos bűncselekmény között?", "answer": "Tiszta mulasztásos (immateriális): a mulasztás egymagában, eredményre tekintet nélkül büntetendő (pl. segítségnyújtás elmulasztásának alapesete [Btk. 166. § (1)]). Vegyes mulasztásos (materiális): a mulasztáson kívül a tényállásszerű eredmény bekövetkezése is szükséges (pl. halálos kimenetelű segítségnyújtás elmulasztása [Btk. 166. § (2)]).", "source_page": "19"}], "10. Az eredmény és az okozati összefüggés": [{"id": "zv_t10_c1", "question": "Mi az eredmény büntetőjogi fogalma és hogyan csoportosíthatók a bűncselekmények eredmény szerint?", "answer": "Eredmény: a törvényi tényállásban ismérveként szereplő külvilági változás (akár negatív: változás hiánya is lehet). Csoportosítás: 1. Alaki (immateriális) – tényállásban nem szerepel eredmény. 2. Anyagi (materiális): a) sértő (pl. emberölés → halál, csalás → kár); b) veszélyeztető: konkrét (pl. közúti veszélyeztetés → közvetlen veszély) vagy absztrakt (pl. ittas járművezetés).", "source_page": "20"}, {"id": "zv_t10_c2", "question": "Mi a conditio sine qua non formula és mik a korlátai?", "answer": "Módszer: gondolatban ki kell hagyni a cselekményt, majd vizsgálni, hogy az eredmény bekövetkezne-e vagy elmaradna. Ha elmaradna → okozati összefüggés fennáll. Korlátai: alternatív kauzalitásnál (mindkét ok önmagában is elegendő) abszurd eredményre vezet (egyik sem ok). Hipotetikus kauzalitásnál (halálos beteg lelövése) is problémás. Megoldás: törvényszerű feltétel formulája.", "source_page": "20"}, {"id": "zv_t10_c3", "question": "Mi a feltételek egyenértékűségének elmélete és mi az adekvát kauzalitás?", "answer": "Feltétel-egyenértékűség (conditio sine qua non): minden szükséges feltétel ok, és minden ok egyenlő – a felelősség csak bűnösség szintjén zárható ki. Kritika: regressus in infinitum. Adekvát kauzalitás: csak az a feltétel ok, amelynek tipikus (adekvát) következménye az eredmény. Az elkövető tudásához képest vizsgálandó. Kritika: szubjektív elemeket von be az objektív okozatosságba.", "source_page": "20–21"}, {"id": "zv_t10_c4", "question": "Mi az objektív beszámítás és mikor zárható ki?", "answer": "Az objektív beszámítás azt vizsgálja, hogy az okozati összefüggés fennállása esetén az eredmény az elkövető terhére írható-e. Kizárható: a) jogilag releváns veszély hiánya; b) rizikócsökkentés (súlyosabb eredmény elhárítása érdekében okoz enyhébbet); c) a rizikó-összefüggés hiánya (eredmény kívül esik a megsértett norma védelmi körén); d) a sértett önkéntes kockázatvállalása; e) az eredmény kötelességszerű magatartás esetén is bekövetkezett volna.", "source_page": "21"}, {"id": "zv_t10_c5", "question": "Mi az atipikus kauzalitás és mik a fő esetei?", "answer": "Atipikus kauzalitás: az elkövetési magatartáshoz kapcsolódó más ok hozza létre az eredményt, az okfolyamat a tipikustól eltérő irányba fejlődik. Fő esetek: 1) Alternatív kauzalitás: két önmagában elegendő ok egyidejűleg hat. 2) Kumulatív kauzalitás: csak együttes hatásuk hoz létre eredményt. 3) Atipikus kísérőkörülmény: pl. vérzékenység miatt halálos a kisebb sérülés. 4) Hipotetikus kauzalitás: a ténylegesen ható ok eredményét más is előidézte volna ugyanakkor.", "source_page": "21"}]}, "Büntetőjog 1.": {"1. A büntetőjog fogalma, kialakulása, a büntetőjog és az erkölcs": [{"id": "bj1_01_01", "question": "Mi a büntetőjog tágabb értelemben vett fogalma?", "answer": "A büntetőjog mint szabályösszesség három ágat foglal magában:\n• Büntető anyagi jog\n• Büntetőeljárás jog\n• Büntetés-végrehajtási jog\n\nEzek együttesen alkotják a büntetőjog normarendszerét.", "source_page": "1"}, {"id": "bj1_01_02", "question": "Mi a büntető anyagi jog?", "answer": "A büntetőjog szűk értelemben vett fogalma. Meghatározza:\n• Ki, miért és mivel büntethető\n• Mely cselekmények minősülnek bűncselekménynek\n• Milyen feltételekkel vonható valaki felelősségre\n• Milyen büntetések és intézkedések alkalmazhatók\n• Milyen akadályai vannak a büntethetőségnek", "source_page": "1"}, {"id": "bj1_01_03", "question": "Mi a büntetőeljárás jog?", "answer": "A büntetőjogi felelősségre vonás rendjét szabályozza. Meghatározza:\n• Mely szervek állapíthatják meg, hogy bűncselekmény történt-e\n• Kik folytathatnak nyomozást\n• Ki emelhet vádat és ki dönthet a vádról\n• Az eljárással érintett személyek jogait és kötelezettségeit\n\nA nyomozó hatóság, az ügyészség és a bíróság érvényesíti az állam büntetőjogi igényét.", "source_page": "1"}, {"id": "bj1_01_04", "question": "Mi a büntetés-végrehajtási jog?", "answer": "A jogerősen kiszabott büntetések és alkalmazott intézkedések végrehajtásának feltételeit szabályozza. Meghatározza:\n• Hogyan kell foganatba venni / végrehajtani a büntetést\n• A végrehajtásban részt vevő szervek feladatait\n• Az elítélt jogait és kötelezettségeit", "source_page": "1"}, {"id": "bj1_01_05", "question": "Milyen jellemzői van a büntetőjognak és hol helyezkedik el a jogrendszerben?", "answer": "Jellemzői:\n• Főszabály: tilalom megjelölése (pl. Ne ölj! -> emberölés tényállása Btk. 160. §)\n• Kivételesen: magatartás tanúsításának előírása (pl. segítségnyújtás Btk. 166. §)\n• Tehát: egy megvalósított cselekményt VAGY egy elvárt magatartás hiányát pönalizálja\n\nElhelyezkedés: közjogi jellegű, mivel:\n• Bűncselekmény = az állam által fenntartott és védett jogrend megsértése\n• Büntetés = az állam által igazságosan és célszerűen alkalmazott jogeszköz", "source_page": "1"}, {"id": "bj1_01_06", "question": "Hogyan alakult ki a büntetőjog történetileg?", "answer": "Fejlődési szakaszok:\n1. Magánbosszú – az egyén maga vesz elégtételt (egyéni felelősség)\n2. Vérbosszú – a sértett a támadó családján is elégtételt vehetett (kollektív felelősség)\n3. Talio-elv – szemet szemért, fogat fogért: már a közösség hajtja végre\n4. Kompenzáció – a támadó vagyoni értékkel megvásárolhatta a mentességet\n5. Állam megszilárdulása – az egyéni jogérvényesítést felváltja az állami fellépés\n6. Első büntető törvénykönyvek (pl. Hammurapi, Drakón) – központi igazságszolgáltatás", "source_page": "1-2"}, {"id": "bj1_01_07", "question": "Mi a kapcsolat a büntetőjog és az erkölcs között?", "answer": "Két irányzat:\n• Szoros összefüggés (Jellinek, Halschner, Durkheim): a tilalmazott cselekmények mindig erkölcstelenek, a bj. erkölcsi minimum\n• Nem releváns (Liszt, Binding, Birkmeyer): a bűncselekmények egy része erkölcstelen, egy része nem\n\nHelyes álláspont:\n• Jelentős átfedés van erkölcs és jog között, de nincs szükségszerű fogalmi összefüggés\n• Nem minden erkölcstelen magatartás büntethető (alapfeltétel: okoz-e sérelmet másoknak)\n• Van bűncselekmény erkölcsi háttér nélkül is", "source_page": "2"}], "2. A magyar büntetőjog története a Csemegi Kódextől napjainkig": [{"id": "bj1_02_01", "question": "Hogyan jött létre a Csemegi Kódex és mi a jelentősége?", "answer": "Létrejötte:\n• 1852: osztrák büntető törvénykönyv volt hatályban\n• 1868: Horváth Boldizsár miniszter felkérte Csemegi Károlyt\n• 1873: elkészült az első verzió, de az országgyűlés feloszlott\n• 1878. május 29.: elfogadták – 1878. évi V. törvénycikk\n• 1880. szeptember 1.: hatályba lépett\n\nJelentősége:\n• Megfelelt a kor követelményeinek\n• Általános része 1951-ig, különös része 1961-ig hatályban", "source_page": "2-3"}, {"id": "bj1_02_02", "question": "Mi a Csemegi Kódex szerkezete és hogyan különböztette meg a bűntettet és vétséget?", "answer": "Két részre tagolódott:\nÁltalános rész: hatály, büntetések fajtái, kísérlet, részesség, bűnösség, bűnhalmazat, stb.\nKülönös rész: 42 fejezetre tagoltan tartalmazza a konkrét bűncselekményeket\n\nBűntett és vétség különbsége:\n• Bűntett: csak szándékosan elkövetett cselekmény\n• Vétség: egyes szándékos deliktumok + gondatlan bűncselekmények", "source_page": "3"}, {"id": "bj1_02_03", "question": "Mi volt a Csemegi Kódex büntetési rendszere?", "answer": "Főbüntetések:\n• Halálbüntetés: gyilkosság és a király szándékos megölése esetén\n• Fegyház: életfogytig, vagy határozott ideig (min. 2 év, max. 15 év)\n• Börtön: max. 10 év\n• Államfogház: max. 15 év\n• Fogház: min. 1 nap, max. 5 év\n• Pénzbüntetés\n\nMellékbüntetések:\n• Hivatalvesztés, politikai jogok ideiglenes felfüggesztése\n• Foglalkozástól eltiltás, elkobzás, kiutasítás", "source_page": "3"}, {"id": "bj1_02_04", "question": "Mit szabályozott az I. Bn. (1908. évi XXXVI. törvénycikk)?", "answer": "Cím: A büntető törvénykönyvek és a bűnvádi perrendtartás kiegészítéséről és módosításáról\n\nFőbb újítások:\n• Büntetés felfüggesztésének bevezetése (rövid fogházbüntetés, méltánylandó esetben pénzbüntetés)\n\nFiatalkorúak büntetőjoga:\n• Fiatalkorú: 12–18 év\n• Szabadságvesztés csak fogházban vagy államfogházban\n\nIntézkedések fiatalkorúakkal szemben:\n• Dorgálás, próbára bocsátás, javító nevelés (max. 21 életévig)\n• 12 év alatti gyermekkel szemben nem indulhatott büntetőeljárás", "source_page": "3-4"}, {"id": "bj1_02_05", "question": "Mit szabályozott az 1921. évi III. törvénycikk?", "answer": "Cím: Az állami és társadalmi rend védelméről – a Tanácsköztársaság utáni jogalkotás első terméke\n\nKét bűncselekményt szabályoz:\n1. Állami és társadalmi rend erőszakos felforgatása/megsemmisítése\n2. Magyar állam és nemzet megbecsülése elleni deliktum (valótlan tényállítások)", "source_page": "4"}, {"id": "bj1_02_06", "question": "Mit szabályozott a II. Bn. (1928. évi X. törvénycikk)?", "answer": "Cím: A büntető igazságszolgáltatás egyes kérdéseinek szabályozásáról\n\nPénzbüntetés reformja: az elítélt vagyoni viszonyait figyelembe kell venni (arányosság)\n\nMegátalkodott bűntettesek:\n• Aki élet/szemérem/vagyon ellen legalább 3 bűntettet követett el -> szigorított dologházba utalás\n• Határozatlan tartamú, min. 3 év; feltételes szabadság az igazságügy-minisztertől kérhető", "source_page": "4-5"}, {"id": "bj1_02_07", "question": "Kik minősültek háborús bűnösnek az 1945. évi VII. törvénycikk alapján?", "answer": "Halálbüntetéssel sújtotta:\n• Aki vezető állásban elősegítette Magyarország háborúba sodródását\n• Aki a fegyverszünetet megakadályozni igyekezett\n• Aki vezető cselekményével a nyilas mozgalomnak a hatalomhoz segített\n\nSzabadságvesztéssel (1–10 év) sújtotta:\n• Aki rádióban/nyomtatványban a háború folytatására izgatott\n• Aki az SS/Gestapo kötelékébe lépett\n• Aki háborús hírverésben szellemi munkát végzett", "source_page": "5"}, {"id": "bj1_02_08", "question": "Mi volt a szocialista büntetőjogi jogalkotás célja és mit tartalmazott a Btá.?", "answer": "Szocialista jogalkotás célja: a diktatórikus rendszer gazdasági és politikai védelme\nPéldák: tervgazdálkodás, társadalmi tulajdon, devizaszabályok védelme\n\nBtá. – 1950. évi II. törvény:\n• Cím: A büntető törvénykönyv általános részéről\n• 1951. január 1-jén lépett hatályba\n• A Csemegi Kódex általános részét helyezte hatályon kívül", "source_page": "5-6"}], "3. A büntetőjog tudományának főbb irányai. A magyar büntetőjog tudománya": [{"id": "bj1_03_01", "question": "Mi a klasszikus iskola lényege és alapvető tételei?", "answer": "Főbb képviselők: Beccaria, Brusa, Carrara, Lucchini\n\nAlaptételek:\n• Indeterminizmus: az emberi akarat szabad -> a tettes szabad elhatározásból választja a bűnözést\n• Törvény előtti egyenlőség elve: a normák mindenkire vonatkoznak\n• Törvényességi elv: nullum crimen sine lege, nulla poena sine lege\n• Tett-központúság: csak a bűncselekményt megvalósító magatartás érdekes\n• Proporcionális büntetés: tetarányos, igazságos megtorlás\n• Írott jog tanulmányozása: a büntetőjog végső értelmét a büntető törvényre vezeti vissza", "source_page": "8"}, {"id": "bj1_03_02", "question": "Mi a kriminológiai jellegű iskolák közös jellemzője és milyen főbb irányzatai vannak?", "answer": "Közös jellemző: determinizmus – az emberi akarat nem szabad, a tettes személye áll a középpontban\n\nFőbb irányzatok:\n1. Kriminálantropológiai iskola (Lombroso): a bűnözés öröklött hajlamból fakad, a bűnöző megismerhető külső jegyek alapján\n2. Kriminálszociológiai iskola (Guerry, Tarde): a bűnözés melegágya a társadalmi környezet (munkanélküliség, alacsony műveltség, alkoholizmus)\n3. A harmadik iskola (Ferri): öröklött hajlam + társadalmi körülmények együttes hatása", "source_page": "8-9"}, {"id": "bj1_03_03", "question": "Mi a közvetítő iskola (Liszt) és az újabb irányzatok lényege?", "answer": "Közvetítő iskola (Liszt, Prins, Hamel): klasszikus és kriminológiai iskolák szintézise\n• A bcs. egy törvényi tilalomba ütköző antiszociális magatartás\n• Liszt 1882-es marburgi programja: proporcionális büntetés helyett célbüntetés; speciálprevenció: ijesztés, javítás, ártalmatlanná tétel\n\nÚj társadalomvédelmi irányzat (1940-50-es évek): az elkövető visszavezetése a társadalomba\nKét nyomtávú büntető elmélet: eltérő eszközök a különösen veszélyes és a kisebb súlyú bcs.-eket elkövetőkkel szemben\nNeoklasszikus iskola: megtorlás és tetarányos büntetés – válasz az új bűnözési formákra", "source_page": "9-10"}, {"id": "bj1_03_04", "question": "Melyek a magyar büntetőjog-tudomány legfontosabb képviselői?", "answer": "XVIII-XIX. század:\n• Szlemenics Pál – első magyar nyelvű büntetőjogi tudományos könyv\n• Vuchetich Mátyás – első latin nyelvű egyetemi büntetőjogi tankönyv\n• Szemere Bertalan – elutasítja a halálbüntetést, az életfogytigot javasolja\n• Pauler Tivadar – Büntetőjogtan (köz- és magánbűntett felosztás)\n• Csemegi Károly – a Csemegi Kódex megalkotója\n\nXX. század:\n• Kádár Miklós – szegedi büntetőjogi iskola\n• Tokaji Géza – szegedi büntetőjogi iskola\n• Békés Imre – budapesti büntetőjogi iskola; PPKE-JÁK alapítója", "source_page": "10-11"}], "4. A jogállami büntetőjog tételei": [{"id": "bj1_04_01", "question": "Melyek a jogállami büntetőjog alapvető tételei?", "answer": "• Jogbiztonság és igazságosság elve\n• Törvényességi elv (nullum crimen sine lege + nulla poena sine lege)\n• Nullum crimen sine culpa elve (bűnösség nélkül nincs bűncselekmény)\n• Súlyosabb büntetérendelkezés visszaható hatályának tilalma\n• A büntetőjog ultima ratio jellege\n• A büntető törvény meghatározottságának követelménye\n• Az elkövető terhére alkalmazott analógia tilalma\n• Ne bis in idem elve (kétszeres értékelés tilalma)", "source_page": "11"}, {"id": "bj1_04_02", "question": "Mi a Radbruch-formula és hogyan alkalmazta ezt az Alkotmánybíróság?", "answer": "Radbruch-formula (Gustav Radbruch): A pozitív jognak primátusa van, de ha elviselhetetlenül igazságtalan, meg kell hajolnia az igazságosság előtt. Aki ilyen norma alapján cselekszik, nem mentesülhet a büntetőjogi felelősség alól.\n\nMagyarország: Az AB következetesen ELUTASÍTJA a Radbruch-formulát\n• Zétényi-Takács-féle törvényjavaslat (1944-1990 közötti bűncselekményekre visszanyitott elévülés) -> AB alkotmányellenesnek nyilvánította\n• Indokolás: jogállami keretek közt csak jogállami eszközökkel lehet eljárni; az egyénre nem hárítható az állami mulasztás terhe", "source_page": "12-13"}, {"id": "bj1_04_03", "question": "Mi a törvényességi elv és hogyan érvényesül a büntetőjogban?", "answer": "Lényege: előbb meg kell határozni, mi minősül bűncselekménynek és mi a büntetése – csak azután kerülhet sor felelősségre vonásra.\n\nKét eleme:\n1. Nullum crimen sine lege [Btk. 1. § (1)]: Nincs bűncselekmény törvény nélkül – csak törvény határozhat meg bűncselekményt\n2. Nulla poena sine lege [Btk. 1. § (2)]: Nincs büntetés törvény nélkül – csak a törvényben előre meghatározott büntetés szabható ki\n\nHA az eljáráskor hatályos új törvény enyhébben büntet -> azt kell alkalmazni\nHA az eljáráskor hatályos új törvény súlyosabban büntet -> az új törvény alkalmazása tilos", "source_page": "13"}, {"id": "bj1_04_04", "question": "Mi a ne bis in idem elve és hogyan érvényesül a három büntetőjogi ágban?", "answer": "Kétszeres értékelés tilalma [Alaptörvény XXVIII. cikk (6) bek.]\n\nBüntetőeljárás-jog: ugyanazon cselekmény miatt, ugyanazon személlyel szemben kétszer eljárni és büntetőjogi hátránnyal sújtani nem lehet\n\nBüntetés-végrehajtási jog: ugyanazon bűncselekmény miatt kiszabott büntetést nem lehet kétszer végrehajtani\n\nBüntető anyagi jog: ugyanazt a körülményt sem a terhelt javára, sem terhére nem lehet kétszeresen figyelembe venni\n(Pl. emberölésnél a különös kegyetlenséget a jogalkotó már beépítette a minősített esetbe, így azt súlyosító tényezőként nem lehet még egyszer értékelni)", "source_page": "15"}], "5. A büntetőpolitika": [{"id": "bj1_05_01", "question": "Mi a büntetőpolitika fogalma és feladata?", "answer": "Fogalma (tágabb értelemben): A bűnözéssel, a büntetőjogi felelősség kérdésével, a felelősségre vonás rendjével és a büntetés végrehajtásával kapcsolatos eszmék rendszerének összessége\n\n3 összetevő:\n• Anyagi jogi büntetőpolitika – mely cselekményeket kell büntetni\n• Büntetőeljárás-jogpolitika – a felelősségre vonás rendje\n• Büntetés-végrehajtási jogpolitika – büntetések végrehajtása + társadalomba való visszailleszkedés\n\nFeladata (Jescheck): a büntetőjog rendszerét úgy kell kialakítani, hogy a társadalom védelme a legjobban biztosítható legyen; a célszerűséget a jogállamiság és a humanitás korlátozzák", "source_page": "15-16"}, {"id": "bj1_05_02", "question": "Melyek a büntetőpolitika főbb típusai?", "answer": "Neoklasszikus irányzat: alapja a megtorlás, proporcionális büntetés – bűn büntetlenül nem maradhat\n\nÁldozatorientált büntetőpolitika: az elkövető által okozott sérelmek jóvátételére helyezi a hangsúlyt (reparáció)\n\nKétnyomású büntetőpolitika: különbséget tesz különösen veszélyes bűnözők és bagatell bűncselekményt végrehajtók között – az előbbiek ellen szigor, az utóbbiakkal szemben alternatív szankciók\n\nJog és rend büntetőpolitikája (zero tolerance): jog- és rendsértés nem maradhat következmény nélkül; 'három csapás': harmadik erőszakos bűncselekmény kötelező életfogytig tartó szabadságvesztést von maga után", "source_page": "17"}, {"id": "bj1_05_03", "question": "Mik a büntetőpolitika magyar sajátosságai és a fontosabb törvényi fordulópontok?", "answer": "• XVI. sz.: Tripartitum – ellensúlyozta a részrehajló ítélkezést\n• Mária Terézia: eltörli a kínzást\n• II. József: eltörli a halálbüntetést (de később visszaállítják)\n• 1843. évi kodifikációs javaslat: modern, de nem lett törvény\n• Csemegi Kódex: megfelelt a kor büntetőpolitikai követelményeinek\n• 1945 után: a kommunista párt a hatalma eszközeként használja a büntetőjogot\n• 1998. évi LXXXVII. tv.: nem lehet cél a büntetőjog egészének szigorítása\n• 2012. évi C. tv. (hatályos Btk.): szigorítások, életfogytig tartó szabadságvesztés kiterjesztése", "source_page": "17"}], "6. A büntetőjog forrásai. A büntető törvények rendszere és szerkezete": [{"id": "bj1_06_01", "question": "Melyek a büntetőjog forrásai és azok hierarchiája?", "answer": "1. Nemzetközi jog: transzformáció nélkül a magyar jog részei (Hágai, Genfi Egyezmények, Genocídium Egyezmény, stb.)\n2. Európai (EU) jog: rendeletek, irányelvek, határozatok\n3. Alaptörvény: deklarálja a jogállami elveket (törvényességi elv, ex tunc tilalma); megjelöli a védendő értékeket\n4. Alkotmánybírósági határozatok: kassziálhatják a jogszabályokat, de nem alkothatnak új normát\n5. Törvény: büntető anyagi jogi rendelkezéseket csak törvény tartalmazhat (2012. évi C. tv. a hatályos Btk.)\n6. Bíró alkotta jog: a Kúria jogegységi határozatai kötelezőek a bíróságokra", "source_page": "17-19"}, {"id": "bj1_06_02", "question": "Mi a keretdiszpozíció és mik a magyar büntetőjogi kodifikáció termékei?", "answer": "Keretdiszpozíció: a büntető törvény csak keretet ad, amelyet más jogághoz tartozó igazgatási normák töltenek ki (pl. KRESZ + közlekedési bűncselekmény)\n\nMagyar büntető törvénykönyvek:\n• 1878. évi V. tc. – Csemegi Kódex\n• 1961. évi V. tv. – 1961. évi Btk.\n• 1978. évi IV. tv. – korábbi Btk.\n• 2012. évi C. tv. – hatályos Btk.\n\nA 2012. évi C. törvény felépítése:\n• Általános rész (12 fejezet): minden bűncselekménynél vizsgálandó rendelkezések\n• Különös rész (33 fejezet): konkrét bűncselekmények védett jogtárgy szerinti fejezetekbe tagolva", "source_page": "18-19"}], "7. A büntető norma szerkezete": [{"id": "bj1_07_01", "question": "Milyen a jogszabályok hagyományos felépítése és a diszpozíció típusai?", "answer": "Hagyományos felépítés:\n• Hipotézis: a jogszabályban megjelenített tényállás (szabályozni kívánt szituáció)\n• Diszpozíció: az elvárt vagy tiltott magatartás\n• Szankció: a jogkövetkezmény a magatartást nem tanúsítóval szemben\n\nDiszpozíció típusai:\n• Egyszerű diszpozíció: csak elengedhetetlen tényállási elemek (bizonyos cselekmények büntetőjog-ellenessége evidencia)\n• Leíró diszpozíció: részletesen tartalmazza a bűncselekmény releváns körülményeit\n• Hivatkozó diszpozíció: utal a Btk. egy másik rendelkezésére (pl. hivatalos személy elleni erőszak)\n• Keretdiszpozíció: a tényállási kereteket igazgatási normák töltik ki tartalommal", "source_page": "19-20"}, {"id": "bj1_07_02", "question": "Milyen szankciótípusokat ismer a büntetőjog?", "answer": "• Abszolút határozatlan szankció: sem a büntetés neme, sem mértéke nem meghatározott – bírói önkényre ad módot, sérti a jogállamiságot\n• Abszolút határozott szankció: büntetés neme és mértéke megváltoztathatatlan – a bíró nem mérlegelhet\n• Relatíve határozatlan szankció: a büntetési nem meghatározott, de csak az alsó vagy felső határ rögzített\n• Relatíve határozott szankció: büntetési keretek meghatározottak, a bíró egyéniesítheti a büntetést (ez a Btk. által alkalmazott megoldás)\n• Választást nem tűrő szankció: egyetlen büntetési nemet határoz meg\n• Alternatív jellegű szankció: több jogkövetkezményt csatol, a bíró választhat közülük", "source_page": "20"}], "8. A büntető törvény értelmezése. Az értelmezés rendeltetése, fajai, módja, alanyai, eredménye": [{"id": "bj1_08_01", "question": "Mi az értelmezés rendeltetése és módjai a büntetőjogban?", "answer": "Rendeltetése: a büntető jogszabály valódi tartalmának feltárása az egységes jogalkalmazás érdekében – nem joga, hanem kötelezettsége a jogalkalmazónak\n\nÉrtelmezés módjai:\n• Nyelvtani értelmezés: szavak általánosan elfogadott jelentése (szemantikai + szintaktikai)\n• Logikai értelmezés: formális logika alapján (a minore ad maius, a maiore ad minus, argumentum a contrario)\n• Történeti értelmezés: a jogszabály keletkezési körülményeiből von le következtetést\n• Rendszertani értelmezés: a norma jogszabálybeli elhelyezkedése alapján (horizontális + vertikális)\n• Teleologikus értelmezés: a szabályozás céljára figyelemmel vizsgálja a norma tartalmát", "source_page": "21-23"}, {"id": "bj1_08_02", "question": "Melyek az értelmezés alanyai és mi az értelmezés eredménye?", "answer": "Értelmezés alanyai:\n• Jogalkotói értelmezés: kötelező erővel bír (pl. Btk. Záró Rész fogalommeghatározásai)\n• Jogalkalmazói értelmezés: bírói értelmezés az elsődleges; jogegységi határozat kötelező a bíróságokra; elvi bírósági határozat csak a Kúria tekintetében kötelező\n• Tudományos értelmezés: nem kötelező, de a gyakorlat figyelemmel kíséri\n\nÉrtelmezés eredménye:\n• Kiterjesztő értelmezés: tágabban állapítja meg a törvény tartalmát a jogalkotói akaratnál – sérti a nullum crimen sine lege elvét\n• Megszorító értelmezés: szűkebben állapítja meg – nem sérti a nullum crimen elvét, de sérti a hatalommegosztást\n• Megállapító értelmezés: a jogalkotó valódi akaratát tárja fel – ez az ideális", "source_page": "23-24"}], "9. A büntető törvény időbeli hatálya": [{"id": "bj1_09_01", "question": "Mi a különbség az érvényesség és hatályosság között, és hogyan veszíti hatályát egy jogszabály?", "answer": "Érvényesség: a vonatkozó normáknak megfelelő jogalkotást jelenti; egy érvényes jogi norma létezik, de nem feltétlenül kötelező\n\nHatályosság: az érvényes jogszabály alkalmazásának követelménye; a jogszabály kifejti joghatásait\n\nHatályát veszti a jogszabály:\n• Hatályon kívül helyező rendelkezés\n• Helyébe lépő új jogszabály\n• Alkotmánybíróság megsemmisíti\n\nA Btk. kihirdetve: 2012. július 13.; hatályba lépett: 2013. január 1.", "source_page": "24-25"}, {"id": "bj1_09_02", "question": "Mi a visszaható hatály tilalma és mi a bűncselekmény elkövetési időpontjának meghatározása?", "answer": "Visszaható hatály (ex tunc) tilalma: a bűncselekményt az elkövetés idején hatályban lévő törvény szerint kell elbírálni\n\nKivételek: enyhébb elbírálást lehetővé tevő vagy dekriminalizáló törvényt visszaható hatállyal kell alkalmazni\n\nElméletetek a bűncselekmény időpontjának meghatározására:\n• Tevékenységi elmélet: az utolsó részcselekmény időpontja (a tankönyv ezt fogadja el, mert a nullum crimen elvét érvényesíti)\n• Cselekmény-egység elmélet: a tényállás bármely elemének megvalósulásakor\n• Eredményelmélet: az eredmény bekövetkezésekor\n• Okfolyamat-elmélet: amikor az okfolyamat már önállóan zajlik", "source_page": "25-26"}], "10. A büntető törvény területi és személyi hatálya": [{"id": "bj1_10_01", "question": "Melyek a büntető törvény hatályosságának alapelvei és azok lényege?", "answer": "• Territoriális elv: a törvény hatálya arra a magatartásra vonatkozik, amelyet az állam területén valósítottak meg – irreleváns, melyik állam polgára követte el\n• Personalis elv (állampolgársági elv): az állampolgárságnak van meghatározó szerepe\n  - Aktív personalis elv: csak a saját állampolgárokra vonatkozik\n  - Passzív personalis elv: a külföldi által külföldön elkövetett cselekményre is kiterjed, ha a sértett a saját állampolgár\n• Real principium (önvédelem elve): minden olyan cselekményre vonatkozik, amelyet az állam büntetőjogellenesnek minősít – irreleváns az elkövetés helye és az állampolgárság\n• Universalitas elv (feltétlen büntető hatalom): bárki, bárhol elkövetett cselekményét büntetni kell; relatív és abszolút alakzata van", "source_page": "26-27"}, {"id": "bj1_10_02", "question": "Hogyan érvényesülnek a hatályossági alapelvek a Btk. 3. §-ában?", "answer": "Btk. 3. § (1) bek. a) pont: belföldi elkövetés -> territoriális elv\nBtk. 3. § (1) bek. b) pont: magyar felségjelű vízi/légi járművön elkövetett bcs. -> territoriális elv speciális alakzata\nBtk. 3. § (1) bek. c) pont: magyar állampolgár külföldön, ha a Btk. szerint bűncselekmény -> aktív személyi elv\n\nBtk. 3. § (2) bek. a) pont:\n• aa): nem magyar állampolgár külföldön, de mindkét jog szerint bűncselekmény\n• ab): állam elleni bűncselekmény (irrelváns, hogy külföldön büntethető-e) -> állami önvédelem\n• ac): XIII-XIV. fejezet szerinti bcs., vagy amelynek üldözését nemzetközi szerződés írja elő -> relatív universalitas\nBtk. 3. § (2) bek. b) pont: a sértett magyar -> passzív személyi elv\n\nA (2) bekezdés szerinti eljárást csak a legfőbb ügyész rendelheti el [Btk. 3. § (3) bek.]", "source_page": "27-28"}]}};
+
+const SR_INTERVALS = [1, 3, 5, 7];
+const PROGRESS_KEY = 'flashcard_progress';
+
+let currentMode = 'all';
+let currentBook = '';
+let currentTetel = '';
+let deck = [];
+let idx = 0;
+let flipped = false;
+
+// ── Progress (localStorage) ──
+function loadProgress() {
+  try { return JSON.parse(localStorage.getItem(PROGRESS_KEY) || '{}'); }
+  catch { return {}; }
+}
+function saveProgress(p) {
+  localStorage.setItem(PROGRESS_KEY, JSON.stringify(p));
+}
+
+// Import server-side progress once (first run only)
+(function importInitialProgress() {
+  const existing = localStorage.getItem(PROGRESS_KEY);
+  if (!existing || existing === '{}') {
+    const serverProgress = {"bj1_01_01": {"level": 1, "next_review": "2026-04-22", "last_reviewed": "2026-04-21"}, "bj1_05_03": {"level": 1, "next_review": "2026-04-22", "last_reviewed": "2026-04-21"}, "bj1_02_04": {"level": 0, "next_review": "2026-04-22", "last_reviewed": "2026-04-21"}};
+    if (Object.keys(serverProgress).length > 0) {
+      localStorage.setItem(PROGRESS_KEY, JSON.stringify(serverProgress));
+    }
+  }
+})();
+
+// ── Init selectors ──
+(function init() {
+  const bookSel = document.getElementById('bookSel');
+  const sBookSel = document.getElementById('sBookSel');
+  Object.keys(ALL_CARDS).sort().forEach(book => {
+    [bookSel, sBookSel].forEach(sel => {
+      const o = document.createElement('option');
+      o.value = book; o.textContent = book;
+      sel.appendChild(o);
+    });
+  });
+})();
+
+function onBookChange() {
+  currentBook = document.getElementById('bookSel').value;
+  const tetelSel = document.getElementById('tetelSel');
+  tetelSel.innerHTML = '<option value="">-- Válassz tételt --</option>';
+  if (!currentBook) return;
+  Object.keys(ALL_CARDS[currentBook] || {}).forEach(t => {
+    const o = document.createElement('option');
+    o.value = t; o.textContent = t;
+    tetelSel.appendChild(o);
+  });
+  currentTetel = '';
+  renderEmpty();
+}
+
+function onTetelChange() {
+  currentTetel = document.getElementById('tetelSel').value;
+  if (currentTetel) loadDeck();
+  else renderEmpty();
+}
+
+function setMode(mode) {
+  currentMode = mode;
+  document.getElementById('modeAll').classList.toggle('active', mode === 'all');
+  document.getElementById('modeSR').classList.toggle('active', mode === 'spaced');
+  if (currentTetel) loadDeck();
+}
+
+// ── Deck ──
+function loadDeck() {
+  if (!currentBook || !currentTetel) return;
+  const allCards = (ALL_CARDS[currentBook] || {})[currentTetel] || [];
+  const progress = loadProgress();
+  const today = todayStr();
+
+  if (currentMode === 'spaced') {
+    deck = allCards.filter(c => {
+      const p = progress[c.id];
+      return !p || (p.next_review || '9999') <= today;
+    });
+  } else {
+    deck = [...allCards];
+  }
+
+  // Shuffle
+  for (let i = deck.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [deck[i], deck[j]] = [deck[j], deck[i]];
+  }
+
+  idx = 0;
+  flipped = false;
+  updateStats();
+  renderCard();
+}
+
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+// ── Stats ──
+function updateStats() {
+  const bar = document.getElementById('statsBar');
+  if (!currentBook || !currentTetel) { bar.style.display = 'none'; return; }
+  const allCards = (ALL_CARDS[currentBook] || {})[currentTetel] || [];
+  const progress = loadProgress();
+  const today = todayStr();
+  const newC = allCards.filter(c => !progress[c.id]).length;
+  const due = allCards.filter(c => progress[c.id] && (progress[c.id].next_review || '9999') <= today).length;
+  const done = allCards.filter(c => progress[c.id] && (progress[c.id].next_review || '9999') > today).length;
+  bar.style.display = 'flex';
+  bar.innerHTML = `
+    <span class="pill pill-total">&#x1F4CA; ${allCards.length} kártya</span>
+    <span class="pill pill-new">&#x2728; ${newC} új</span>
+    <span class="pill pill-due">&#x23F0; ${due} esedékes</span>
+    <span class="pill pill-done">&#x2705; ${done} kész</span>
+  `;
+}
+
+// ── Render card ──
+function renderCard() {
+  const main = document.getElementById('mainContent');
+  if (!deck.length) {
+    main.innerHTML = `<div class="empty">
+      <div class="icon">&#x1F389;</div>
+      <p>${currentMode === 'spaced' ? 'Nincs esedékes kártya ma! Holnap visszatér.' : 'Nincs kártya ebben a tételben.'}</p>
+    </div>`;
+    return;
+  }
+
+  const card = deck[idx];
+  const progress = loadProgress();
+  const p = progress[card.id] || {};
+  const lvl = p.level || 0;
+
+  main.innerHTML = `
+    <div class="answer-btns" id="answerBtns">
+      <button class="btn btn-knew" onclick="sendProgress('knew')">&#x2705; Tudtam</button>
+      <button class="btn btn-review" onclick="sendProgress('review')">&#x1F501; Újra átnézem</button>
+    </div>
+
+    <div class="card-scene" onclick="flipCard()">
+      <div class="card-inner" id="cardInner">
+        <div class="card-face card-front">
+          <div class="card-label">Kérdés · ${idx+1} / ${deck.length}</div>
+          <div class="card-text">${esc(card.question)}</div>
+          ${card.source_page ? `<div class="card-meta"><span>📄 ${esc(card.source_page)}. oldal</span><span>⭐ szint ${lvl}</span></div>` : `<div class="card-meta"><span></span><span>⭐ szint ${lvl}</span></div>`}
+          <div class="card-hint">&#x1F91A; Koppints a kártyára a válaszhoz</div>
+        </div>
+        <div class="card-face card-back">
+          <div class="card-label">Válasz</div>
+          <div class="card-text">${esc(card.answer)}</div>
+          ${card.source_page ? `<div class="card-meta"><span>📄 ${esc(card.source_page)}. oldal</span><span>⭐ szint ${lvl}</span></div>` : ''}
+        </div>
+      </div>
+    </div>
+
+    <div class="nav-btns">
+      <button class="btn-nav" onclick="prevCard()">&#8592; Előző</button>
+      <button class="btn-nav" onclick="nextCard()">Következő &#8594;</button>
+    </div>
+  `;
+  flipped = false;
+}
+
+function esc(s) {
+  return String(s || '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;');
+}
+
+function flipCard() {
+  flipped = !flipped;
+  const inner = document.getElementById('cardInner');
+  if (inner) inner.classList.toggle('flipped', flipped);
+  const btns = document.getElementById('answerBtns');
+  if (btns) btns.classList.toggle('visible', flipped);
+}
+
+function nextCard() {
+  if (!deck.length) return;
+  idx = (idx + 1) % deck.length;
+  flipped = false;
+  renderCard();
+}
+
+function prevCard() {
+  if (!deck.length) return;
+  idx = (idx - 1 + deck.length) % deck.length;
+  flipped = false;
+  renderCard();
+}
+
+// ── Progress ──
+function sendProgress(action) {
+  if (!deck.length) return;
+  const card = deck[idx];
+  const progress = loadProgress();
+  const p = progress[card.id] || { level: 0 };
+  const today = new Date();
+
+  let newLevel, nextReview;
+  if (action === 'knew') {
+    const level = p.level || 0;
+    const days = SR_INTERVALS[Math.min(level, SR_INTERVALS.length - 1)];
+    const nr = new Date(today); nr.setDate(nr.getDate() + days);
+    nextReview = nr.toISOString().slice(0, 10);
+    newLevel = Math.min(level + 1, SR_INTERVALS.length);
+  } else {
+    const nr = new Date(today); nr.setDate(nr.getDate() + 1);
+    nextReview = nr.toISOString().slice(0, 10);
+    newLevel = 0;
+  }
+
+  progress[card.id] = {
+    level: newLevel,
+    next_review: nextReview,
+    last_reviewed: today.toISOString().slice(0, 10)
+  };
+  saveProgress(progress);
+  updateStats();
+
+  // Remove from deck if SR mode
+  if (currentMode === 'spaced') {
+    deck.splice(idx, 1);
+    if (idx >= deck.length) idx = Math.max(0, deck.length - 1);
+  } else {
+    idx = (idx + 1) % deck.length;
+  }
+  flipped = false;
+  renderCard();
+}
+
+// ── Reset ──
+function resetProgress(scope) {
+  const progress = loadProgress();
+  if (scope === 'all') {
+    if (!confirm('Biztosan törlöd az összes haladást?')) return;
+    localStorage.removeItem(PROGRESS_KEY);
+  } else if (scope === 'book' && currentBook) {
+    if (!confirm(`Törlöd a "${currentBook}" összes haladását?`)) return;
+    const allCards = ALL_CARDS[currentBook] || {};
+    Object.values(allCards).flat().forEach(c => delete progress[c.id]);
+    saveProgress(progress);
+  } else if (scope === 'tetel' && currentTetel) {
+    if (!confirm(`Törlöd a "${currentTetel}" haladását?`)) return;
+    ((ALL_CARDS[currentBook] || {})[currentTetel] || []).forEach(c => delete progress[c.id]);
+    saveProgress(progress);
+  } else {
+    alert('Előbb válassz könyvet / tételt!'); return;
+  }
+  updateStats();
+  if (currentTetel) loadDeck();
+  alert('Reset kész!');
+}
+
+function renderEmpty() {
+  document.getElementById('statsBar').style.display = 'none';
+  document.getElementById('mainContent').innerHTML = `
+    <div class="empty">
+      <div class="icon">&#x1F4DA;</div>
+      <p>Válassz könyvet és tételt a tanuláshoz!</p>
+    </div>`;
+}
+
+// ── Settings ──
+function openSettings() {
+  document.getElementById('main-page').style.display = 'none';
+  document.getElementById('settings-page').classList.add('visible');
+  // Sync selectors
+  const sBook = document.getElementById('sBookSel');
+  sBook.value = currentBook;
+  onSBookChange();
+}
+
+function closeSettings() {
+  document.getElementById('settings-page').classList.remove('visible');
+  document.getElementById('main-page').style.display = 'flex';
+  updateStats();
+}
+
+function onSBookChange() {
+  const book = document.getElementById('sBookSel').value;
+  const sel = document.getElementById('sTetelSel');
+  sel.innerHTML = '<option value="">-- Válassz tételt --</option>';
+  if (!book) return;
+  Object.keys(ALL_CARDS[book] || {}).forEach(t => {
+    const o = document.createElement('option'); o.value = t; o.textContent = t;
+    sel.appendChild(o);
+  });
+  document.getElementById('settingsCardList').innerHTML = '';
+}
+
+function loadSettingsCards() {
+  const book = document.getElementById('sBookSel').value;
+  const tetel = document.getElementById('sTetelSel').value;
+  const el = document.getElementById('settingsCardList');
+  if (!book || !tetel) { el.innerHTML = ''; return; }
+  const cards = (ALL_CARDS[book] || {})[tetel] || [];
+  const progress = loadProgress();
+  const today = todayStr();
+  if (!cards.length) { el.innerHTML = '<p style="color:var(--text2)">Nincs kártya.</p>'; return; }
+  el.innerHTML = `<h3>${esc(tetel)}</h3>` + cards.map((c, i) => {
+    const p = progress[c.id] || {};
+    const status = !p.next_review ? 'Új' : p.next_review <= today ? 'Esedékes' : `Kész (${p.next_review})`;
+    const lvl = p.level || 0;
+    return `<div class="card-item">
+      <div class="card-item-q">${esc(c.question)}</div>
+      <div class="card-item-a">${esc(c.answer)}</div>
+      <div class="card-item-meta">
+        ⭐ Szint ${lvl} · ${status}${c.source_page ? ` · 📄 ${esc(c.source_page)}. oldal` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Edit modal (add custom cards to localStorage) ──
+let editCardId = null;
+let editBook = null;
+let editTetel = null;
+
+function openAddCard() {
+  editCardId = null;
+  editBook = document.getElementById('sBookSel').value;
+  editTetel = document.getElementById('sTetelSel').value;
+  if (!editBook || !editTetel) { alert('Válassz könyvet és tételt!'); return; }
+  document.getElementById('modalTitle').textContent = 'Új kártya hozzáadása';
+  document.getElementById('modalQ').value = '';
+  document.getElementById('modalA').value = '';
+  document.getElementById('modalPage').value = '';
+  document.getElementById('editModal').classList.add('visible');
+}
+
+function closeModal() {
+  document.getElementById('editModal').classList.remove('visible');
+}
+
+function saveCard() {
+  const q = document.getElementById('modalQ').value.trim();
+  const a = document.getElementById('modalA').value.trim();
+  const page = document.getElementById('modalPage').value.trim();
+  if (!q || !a) { alert('Kérdés és válasz kötelező!'); return; }
+
+  if (!ALL_CARDS[editBook]) ALL_CARDS[editBook] = {};
+  if (!ALL_CARDS[editBook][editTetel]) ALL_CARDS[editBook][editTetel] = [];
+
+  const newCard = {
+    id: 'custom_' + Math.random().toString(36).substr(2, 8),
+    question: q, answer: a, source_page: page
+  };
+  ALL_CARDS[editBook][editTetel].push(newCard);
+  // Persist custom cards
+  const customKey = 'flashcard_custom_cards';
+  const custom = JSON.parse(localStorage.getItem(customKey) || '[]');
+  custom.push({ book: editBook, tetel: editTetel, card: newCard });
+  localStorage.setItem(customKey, JSON.stringify(custom));
+
+  closeModal();
+  loadSettingsCards();
+  alert('Kártya hozzáadva!');
+}
+
+// Load custom cards from localStorage
+(function loadCustomCards() {
+  const customKey = 'flashcard_custom_cards';
+  const custom = JSON.parse(localStorage.getItem(customKey) || '[]');
+  custom.forEach(({ book, tetel, card }) => {
+    if (!ALL_CARDS[book]) ALL_CARDS[book] = {};
+    if (!ALL_CARDS[book][tetel]) ALL_CARDS[book][tetel] = [];
+    // Avoid duplicates
+    if (!ALL_CARDS[book][tetel].find(c => c.id === card.id)) {
+      ALL_CARDS[book][tetel].push(card);
+    }
+  });
+})();
+
+// ── Keyboard shortcuts ──
+document.addEventListener('keydown', e => {
+  if (document.getElementById('settings-page').classList.contains('visible')) return;
+  if (['Space','ArrowUp','ArrowDown'].includes(e.code)) { e.preventDefault(); flipCard(); }
+  if (e.code === 'ArrowRight') nextCard();
+  if (e.code === 'ArrowLeft') prevCard();
+  if (e.key.toLowerCase() === 't') sendProgress('knew');
+  if (e.key.toLowerCase() === 'u') sendProgress('review');
+});
+</script>
+</body>
+</html>
